@@ -95,7 +95,7 @@ public partial class Player : CharacterBody3D
 			verticalPivot.Rotation.Z
 		);
 
-		springArm3D.GlobalTransform = verticalPivot.GlobalTransform;
+		
 		_look = Vector2.Zero;
 	}
 }
