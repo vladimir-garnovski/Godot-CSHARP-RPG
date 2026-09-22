@@ -20,6 +20,13 @@ public partial class Player : CharacterBody3D
 
 	[Export] private Node3D horizontalPivot;
 	[Export] private Node3D verticalPivot;
+	[Export] private Node3D rigPivot;
+	[Export] private Rig rig;
+	[Export] private float animationDecay = 20.0f;
+	[Export] private float ATTACK_MOVE_SPEED = 3.0f;
+
+	private Vector3 attackDirection = Vector3.Zero;
+	
 
     public override void _Ready()
     {
@@ -45,10 +52,12 @@ public partial class Player : CharacterBody3D
 	
 		
 		var direction = GetMovementDirection();
+		rig.UpdateAnimationTree(direction);
 		if (direction != Vector3.Zero)
 		{
 			velocity.X = direction.X * Speed;
 			velocity.Z = direction.Z * Speed;
+			LookTowardDirection(direction,(float)delta);
 		}
 		else // Decelerate
 		{
@@ -57,15 +66,18 @@ public partial class Player : CharacterBody3D
 		}
 
 		Velocity = velocity;
+		HandleSlashingPhysicsFrame((float)delta);
 		MoveAndSlide();
+
+		
 	}
     public override void _UnhandledInput(InputEvent @event)
     {
-        if (@event.IsActionPressed("ui_cancel"))
+        if (@event.IsActionPressed("ui_cancel"))	// For releasing the mouse
 		{
 			Input.MouseMode = Input.MouseModeEnum.Visible;
 		}
-		if(Input.MouseMode == Input.MouseModeEnum.Captured)
+		if(Input.MouseMode == Input.MouseModeEnum.Captured) // For looking around (mouse rotate cam)
 		{
 			if( @event is InputEventMouseMotion)
 			{
@@ -73,6 +85,14 @@ public partial class Player : CharacterBody3D
 
 			}
 		}
+		if (rig.isIdle())
+		{
+			if (@event.IsActionPressed("click"))
+			{
+				SlashAttack();
+			}
+		}
+
     }
 	private Vector3 GetMovementDirection()
 	{
@@ -95,7 +115,42 @@ public partial class Player : CharacterBody3D
 			verticalPivot.Rotation.Z
 		);
 
-		
 		_look = Vector2.Zero;
+	}
+	private void LookTowardDirection(Vector3 direction, float delta)
+	{
+		var targetTransform = rigPivot.GlobalTransform.LookingAt(
+			rigPivot.GlobalPosition + direction,
+			Vector3.Up,
+			true
+		);
+		//rigPivot.GlobalTransform = new Transform3D(targetTransform.Basis, rigPivot.GlobalTransform.Origin); //rigPivot.GlobalTransform.Basis = targetTransform.Basis;
+		rigPivot.GlobalTransform  = rigPivot.GlobalTransform.InterpolateWith (
+			targetTransform,
+			1.0f - Mathf.Exp(-animationDecay * (float)delta)
+		);
+	}
+	public void SlashAttack()
+    {
+        rig.Travel("Slash");
+		attackDirection = GetMovementDirection();
+		if (attackDirection.IsZeroApprox())
+		{
+			attackDirection = rig.GlobalBasis * new Vector3(0,0,1);
+		}
+    }
+	private void HandleSlashingPhysicsFrame(float delta)
+	{
+		if (!rig.isSlashing())
+			return;
+
+		Vector3 velocity = this.Velocity;
+
+		velocity.X = attackDirection.X * ATTACK_MOVE_SPEED;
+		velocity.Z = attackDirection.Z * ATTACK_MOVE_SPEED;
+
+		this.Velocity = velocity;
+
+		LookTowardDirection(attackDirection,delta);
 	}
 }
